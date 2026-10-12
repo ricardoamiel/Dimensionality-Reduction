@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reducción de dimensionalidad paso a paso</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="datos.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --fondo: #f6f6f3; --tarjeta: #fcfcfb; --tinta: #0b0b0b; --tinta2: #52514e; --suave: #8a8984;
+  --linea: #e2e1dc; --rejilla: #ecebe6; --azul: #1F4E79; --azul2: #2E75B6; --azul3: #DEEBF7;
+  --cp1: #C55A11; --cp2: #548235; --boton: #1F4E79; --boton-t: #ffffff;
+  --s0: #2a78d6; --s1: #eb6834; --s2: #1baf7a; --s3: #eda100; --s4: #e87ba4; --s5: #008300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --fondo: #111110; --tarjeta: #1a1a19; --tinta: #ffffff; --tinta2: #c3c2b7; --suave: #8f8e87;
+    --linea: #34332f; --rejilla: #262624; --azul: #8fb8e8; --azul2: #5598e7; --azul3: #1d3550;
+    --cp1: #f08a4b; --cp2: #7fbf5a; --boton: #5598e7; --boton-t: #0b0b0b;
+    --s0: #3987e5; --s1: #d95926; --s2: #199e70; --s3: #c98500; --s4: #d55181; --s5: #008300;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --fondo: #111110; --tarjeta: #1a1a19; --tinta: #ffffff; --tinta2: #c3c2b7; --suave: #8f8e87;
+  --linea: #34332f; --rejilla: #262624; --azul: #8fb8e8; --azul2: #5598e7; --azul3: #1d3550;
+  --cp1: #f08a4b; --cp2: #7fbf5a; --boton: #5598e7; --boton-t: #0b0b0b;
+  --s0: #3987e5; --s1: #d95926; --s2: #199e70; --s3: #c98500; --s4: #d55181; --s5: #008300;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fondo); color: var(--tinta);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { padding: 18px 16px 0; max-width: 1240px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+header p { margin: 0 0 12px; color: var(--tinta2); }
+.barra { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pestana { border: 1px solid var(--linea); background: var(--tarjeta); color: var(--tinta);
+  padding: 7px 14px; border-radius: 999px; cursor: pointer; font: inherit; }
+.pestana[aria-selected="true"] { background: var(--boton); color: var(--boton-t); border-color: var(--boton); }
+.tema { margin-left: auto; }
+main { max-width: 1240px; margin: 0 auto; padding: 14px 16px 30px; }
+.tab { display: none; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; }
+.tab.activa { display: grid; }
+.lienzo, .panel { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: 12px; padding: 12px; min-width: 0; }
+.lienzo svg { width: 100%; height: auto; display: block; }
+.panel h2 { font-size: 16px; margin: 0 0 8px; }
+ol.pasos { margin: 0 0 10px; padding-left: 22px; }
+ol.pasos li { padding: 3px 6px; border-radius: 6px; cursor: pointer; color: var(--tinta2); }
+ol.pasos li.actual { background: var(--azul3); color: var(--tinta); font-weight: 600; }
+.explica { border-top: 1px solid var(--linea); padding-top: 10px; min-height: 150px; }
+.explica p { margin: 0 0 8px; }
+.formula { font-family: "Cambria Math", "STIX Two Math", Georgia, serif; font-size: 16px;
+  background: var(--fondo); border-radius: 6px; padding: 6px 10px; margin: 6px 0 8px; overflow-x: auto; }
+.botones { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+button.b { border: 1px solid var(--boton); background: var(--boton); color: var(--boton-t);
+  padding: 6px 12px; border-radius: 8px; cursor: pointer; font: inherit; }
+button.b.sec { background: transparent; color: var(--tinta); border-color: var(--linea); }
+button.b:disabled { opacity: .4; cursor: default; }
+.controles { border-top: 1px solid var(--linea); padding-top: 10px; display: grid; gap: 8px; }
+.controles label { display: grid; grid-template-columns: 130px 1fr 52px; gap: 8px; align-items: center; color: var(--tinta2); }
+.controles input[type=range] { width: 100%; }
+.controles input[type=number] { width: 64px; font: inherit; background: var(--fondo); color: var(--tinta); border: 1px solid var(--linea); border-radius: 6px; padding: 2px 4px; }
+.matriz { display: inline-grid; gap: 2px 12px; padding: 2px 8px; border-left: 2px solid var(--tinta2);
+  border-right: 2px solid var(--tinta2); border-radius: 4px; font-variant-numeric: tabular-nums; vertical-align: middle; }
+.barras { display: grid; gap: 4px; margin: 6px 0; }
+.barras div { display: grid; grid-template-columns: 44px 1fr 56px; gap: 6px; align-items: center; font-size: 13px; }
+.barras span.b2 { height: 12px; border-radius: 0 4px 4px 0; }
+.nota { color: var(--suave); font-size: 13px; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: var(--tinta2); margin-top: 6px; }
+.leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.mosaico { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.mosaico figure { margin: 0; text-align: center; color: var(--tinta2); font-size: 13px; }
+.mosaico canvas { width: 256px; height: 256px; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--linea); max-width: 100%; }
+#tip { position: fixed; pointer-events: none; background: var(--tarjeta); color: var(--tinta); border: 1px solid var(--linea);
+  border-radius: 8px; padding: 6px 8px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.15); display: none; z-index: 9; }
+#tip canvas { width: 48px; height: 48px; image-rendering: pixelated; display: block; margin-top: 4px; }
+.eje text { fill: var(--tinta2); font-size: 11px; }
+.eje line, .eje path { stroke: var(--suave); }
+@media (max-width: 900px) { .tab.activa { grid-template-columns: 1fr; } .tema { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Reducción de dimensionalidad paso a paso</h1>
+  <p>PCA, SVD, t-SNE y UMAP. Elija una técnica y avance con el botón Siguiente o haciendo clic en cada paso.</p>
+  <div class="barra" role="tablist">
+    <button class="pestana" role="tab" data-tab="pca" aria-selected="true">PCA</button>
+    <button class="pestana" role="tab" data-tab="svdg" aria-selected="false">SVD: geometría</button>
+    <button class="pestana" role="tab" data-tab="svdi" aria-selected="false">SVD: compresión</button>
+    <button class="pestana" role="tab" data-tab="tsne" aria-selected="false">t-SNE</button>
+    <button class="pestana" role="tab" data-tab="umap" aria-selected="false">UMAP</button>
+    <button class="pestana tema" id="tema" title="Cambiar tema">Tema claro u oscuro</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============================ PCA ============================ -->
+  <section class="tab activa" id="tab-pca">
+    <div class="lienzo"><svg id="pca-svg" viewBox="0 0 600 600" aria-label="Nube de puntos para PCA"></svg>
+      <p class="nota">En el paso 1 puede arrastrar los puntos o hacer clic en un espacio vacío para agregar uno nuevo.</p></div>
+    <aside class="panel">
+      <h2>PCA en seis pasos</h2>
+      <ol class="pasos" id="pca-pasos"></ol>
+      <div class="botones"><button class="b sec" id="pca-ant">Anterior</button><button class="b" id="pca-sig">Siguiente</button></div>
+      <div class="explica" id="pca-explica"></div>
+      <div class="controles">
+        <label>Correlación <input type="range" id="pca-rho" min="-0.95" max="0.95" step="0.05" value="0.8"><span id="pca-rho-v"></span></label>
+        <label>Número de puntos <input type="range" id="pca-n" min="10" max="150" step="5" value="60"><span id="pca-n-v"></span></label>
+        <div class="botones"><button class="b sec" id="pca-nueva">Nube nueva</button></div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ======================= SVD geometría ======================= -->
+  <section class="tab" id="tab-svdg">
+    <div class="lienzo"><svg id="svdg-svg" viewBox="0 0 600 600" aria-label="Círculo unitario transformado por A"></svg></div>
+    <aside class="panel">
+      <h2>A = U Σ V<sup>T</sup>: rotar, estirar, rotar</h2>
+      <ol class="pasos" id="svdg-pasos"></ol>
+      <div class="botones"><button class="b sec" id="svdg-ant">Anterior</button><button class="b" id="svdg-sig">Siguiente</button></div>
+      <div class="explica" id="svdg-explica"></div>
+      <div class="controles">
+        <div>Matriz A (edítela y observe el cambio):</div>
+        <div class="matriz" style="grid-template-columns: auto auto">
+          <input type="number" step="0.5" id="a11" value="3"><input type="number" step="0.5" id="a12" value="0">
+          <input type="number" step="0.5" id="a21" value="4"><input type="number" step="0.5" id="a22" value="5">
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ======================= SVD compresión ======================= -->
+  <section class="tab" id="tab-svdi">
+    <div class="lienzo">
+      <div class="mosaico">
+        <figure><canvas id="img-orig" width="128" height="128"></canvas><figcaption>Original A</figcaption></figure>
+        <figure><canvas id="img-capa" width="128" height="128"></canvas><figcaption id="cap-capa">Capa σ<sub>i</sub> u<sub>i</sub> v<sub>i</sub><sup>T</sup></figcaption></figure>
+        <figure><canvas id="img-aprox" width="128" height="128"></canvas><figcaption id="cap-aprox">Aproximación de rango k</figcaption></figure>
+      </div>
+      <svg id="svdi-svg" viewBox="0 0 800 230" aria-label="Valores singulares de la imagen"></svg>
+    </div>
+    <aside class="panel">
+      <h2>Compresión de una imagen con SVD</h2>
+      <ol class="pasos" id="svdi-pasos"></ol>
+      <div class="botones"><button class="b sec" id="svdi-ant">Anterior</button><button class="b" id="svdi-sig">Siguiente</button></div>
+      <div class="explica" id="svdi-explica"></div>
+      <div class="controles">
+        <label>Rango k <input type="range" id="svdi-k" min="1" max="128" step="1" value="1"><span id="svdi-k-v"></span></label>
+        <div class="botones"><button class="b sec" id="svdi-mas">Sumar una capa</button><button class="b sec" id="svdi-10">k = 10</button><button class="b sec" id="svdi-50">k = 50</button></div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============================ t-SNE ============================ -->
+  <section class="tab" id="tab-tsne">
+    <div class="lienzo"><svg id="tsne-svg" viewBox="0 0 600 600" aria-label="Mapa t-SNE de dígitos"></svg>
+      <div class="leyenda" id="tsne-ley"></div></div>
+    <aside class="panel">
+      <h2>t-SNE en cinco pasos</h2>
+      <ol class="pasos" id="tsne-pasos"></ol>
+      <div class="botones"><button class="b sec" id="tsne-ant">Anterior</button><button class="b" id="tsne-sig">Siguiente</button>
+        <button class="b sec" id="tsne-play">Ejecutar</button><button class="b sec" id="tsne-mas">+10 iteraciones</button></div>
+      <div class="explica" id="tsne-explica"></div>
+      <div class="controles">
+        <label>Perplejidad <input type="range" id="tsne-perp" min="5" max="50" step="1" value="30"><span id="tsne-perp-v"></span></label>
+        <label>Tasa de aprendizaje <input type="range" id="tsne-eta" min="10" max="400" step="10" value="100"><span id="tsne-eta-v"></span></label>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============================ UMAP ============================ -->
+  <section class="tab" id="tab-umap">
+    <div class="lienzo"><svg id="umap-svg" viewBox="0 0 600 600" aria-label="Mapa UMAP de dígitos"></svg>
+      <div class="leyenda" id="umap-ley"></div></div>
+    <aside class="panel">
+      <h2>UMAP en cinco pasos</h2>
+      <ol class="pasos" id="umap-pasos"></ol>
+      <div class="botones"><button class="b sec" id="umap-ant">Anterior</button><button class="b" id="umap-sig">Siguiente</button>
+        <button class="b sec" id="umap-play">Ejecutar</button></div>
+      <div class="explica" id="umap-explica"></div>
+      <div class="controles">
+        <label>Vecinos k <input type="range" id="umap-k" min="3" max="40" step="1" value="15"><span id="umap-k-v"></span></label>
+        <label>Distancia mínima <input type="range" id="umap-md" min="0" max="0.99" step="0.01" value="0.1"><span id="umap-md-v"></span></label>
+      </div>
+    </aside>
+  </section>
+</main>
+<div id="tip"></div>
+
+<script>
+// ======================================================================
+// Utilidades comunes
+// ======================================================================
+const es = d3.formatLocale({ decimal: ",", thousands: "\u00a0", grouping: [3], currency: ["", ""] });
+const f2 = es.format(".2f"), f3 = es.format(".3f"), f1 = es.format(".1f"), pct = v => f1(100 * v) + "\u00a0%";
+const CLASES = [0, 1, 2, 3, 4, 5];
+const col = c => `var(--s${c})`;
+
+function motorPasos(id, pasos, alEntrar) {
+  // Controla la lista de pasos, los botones y la explicación de una pestaña
+  const lista = d3.select(`#${id}-pasos`);
+  const est = { i: 0 };
+  lista.selectAll("li").data(pasos).join("li").text(d => d.titulo)
+    .on("click", (e, d) => ir(pasos.indexOf(d)));
+  function ir(i) {
+    const prev = est.i;
+    est.i = Math.max(0, Math.min(pasos.length - 1, i));
+    lista.selectAll("li").classed("actual", (d, j) => j === est.i);
+    d3.select(`#${id}-ant`).property("disabled", est.i === 0);
+    d3.select(`#${id}-sig`).property("disabled", est.i === pasos.length - 1);
+    alEntrar(est.i, prev);
+    document.getElementById(`${id}-explica`).innerHTML = pasos[est.i].texto();
+  }
+  d3.select(`#${id}-ant`).on("click", () => ir(est.i - 1));
+  d3.select(`#${id}-sig`).on("click", () => ir(est.i + 1));
+  est.ir = ir;
+  est.refrescar = () => { document.getElementById(`${id}-explica`).innerHTML = pasos[est.i].texto(); };
+  return est;
+}
+
+function matrizHTML(M, fmt = f2) {
+  return `<span class="matriz" style="grid-template-columns:repeat(${M[0].length},auto)">` +
+    M.flat().map(v => `<span>${fmt(Math.abs(v) < 5e-13 ? 0 : v)}</span>`).join("") + "</span>";
+}
+
+function slider(id, fmt, alCambiar) {
+  const el = document.getElementById(id), v = document.getElementById(id + "-v");
+  const upd = () => { v.textContent = fmt(+el.value); };
+  el.addEventListener("input", () => { upd(); alCambiar && alCambiar(+el.value); });
+  upd();
+  return el;
+}
+
+const tip = d3.select("#tip");
+function mostrarTip(e, html, digito) {
+  tip.style("display", "block").html(html);
+  if (digito) {
+    const c = document.createElement("canvas"); c.width = 8; c.height = 8;
+    const ctx = c.getContext("2d"), im = ctx.createImageData(8, 8);
+    digito.forEach((v, k) => { const g = 255 - Math.round(v / 16 * 255); im.data.set([g, g, g, 255], 4 * k); });
+    ctx.putImageData(im, 0, 0); tip.node().appendChild(c);
+  }
+  const r = tip.node().getBoundingClientRect();
+  tip.style("left", Math.min(e.clientX + 14, innerWidth - r.width - 8) + "px").style("top", (e.clientY + 14) + "px");
+}
+const ocultarTip = () => tip.style("display", "none");
+
+function leyenda(id) {
+  d3.select(id).html(CLASES.map(c => `<span><i style="background:${col(c)}"></i>dígito ${c}</span>`).join("") +
+    `<span>Pase el cursor sobre un punto para ver la imagen original.</span>`);
+}
+
+function ejes(g, x, y) {
+  g.selectAll("*").remove();
+  g.append("g").attr("class", "eje").attr("transform", `translate(0,${y(0)})`).call(d3.axisBottom(x).ticks(8).tickSizeOuter(0));
+  g.append("g").attr("class", "eje").attr("transform", `translate(${x(0)},0)`).call(d3.axisLeft(y).ticks(8).tickSizeOuter(0));
+}
+
+function flecha(svg, id, color) {
+  let defs = svg.select("defs"); if (defs.empty()) defs = svg.append("defs");
+  defs.append("marker").attr("id", id).attr("viewBox", "0 0 10 10").attr("refX", 8).attr("refY", 5)
+    .attr("markerWidth", 7).attr("markerHeight", 7).attr("orient", "auto")
+    .append("path").attr("d", "M0,0 L10,5 L0,10 z").style("fill", color);
+}
+
+// Eigen descomposición exacta de una matriz simétrica 2 x 2
+function eig2([[a, b], [, d]]) {
+  const t = (a + d) / 2, r = Math.sqrt(((a - d) / 2) ** 2 + b * b);
+  const l1 = t + r, l2 = t - r;
+  let v1 = Math.abs(b) > 1e-12 ? [l1 - d, b] : (a >= d ? [1, 0] : [0, 1]);
+  const n = Math.hypot(...v1); v1 = [v1[0] / n, v1[1] / n];
+  if (v1[0] < 0) v1 = [-v1[0], -v1[1]];
+  return { l: [l1, l2], v: [v1, [-v1[1], v1[0]]] };
+}
+
+// ======================================================================
+// Pestañas y tema
+// ======================================================================
+const iniciadas = {};
+d3.selectAll(".pestana[data-tab]").on("click", function () {
+  const t = this.dataset.tab;
+  d3.selectAll(".pestana[data-tab]").attr("aria-selected", function () { return this.dataset.tab === t; });
+  d3.selectAll(".tab").classed("activa", false);
+  d3.select(`#tab-${t}`).classed("activa", true);
+  if (!iniciadas[t]) { iniciadas[t] = true; INICIO[t](); }
+});
+d3.select("#tema").on("click", () => {
+  const raiz = document.documentElement;
+  const oscuro = raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  raiz.dataset.theme = oscuro ? "light" : "dark";
+});
+
+// ======================================================================
+// 1. PCA
+// ======================================================================
+function iniciarPCA() {
+  const W = 600, M = 30, svg = d3.select("#pca-svg");
+  const x = d3.scaleLinear([-10, 10], [M, W - M]), y = d3.scaleLinear([-10, 10], [W - M, M]);
+  flecha(svg, "fl-cp1", "var(--cp1)"); flecha(svg, "fl-cp2", "var(--cp2)"); flecha(svg, "fl-media", "var(--suave)");
+  const gEjes = svg.append("g"), gElipse = svg.append("g"), gLinea = svg.append("g"), gProy = svg.append("g"),
+        gFlechas = svg.append("g"), gMedia = svg.append("g"), gPts = svg.append("g"), gRecta = svg.append("g");
+  ejes(gEjes, x, y);
+  let pts = [], paso = 0, r = null;
+
+  function generar() {
+    const rho = +document.getElementById("pca-rho").value, n = +document.getElementById("pca-n").value;
+    const sx = 2.6, sy = 1.6, rnd = d3.randomNormal.source(d3.randomLcg(Math.random()))(0, 1);
+    pts = d3.range(n).map(() => {
+      const z1 = rnd(), z2 = rnd();
+      return { x: 3 + sx * z1, y: 2 + sy * (rho * z1 + Math.sqrt(1 - rho * rho) * z2) };
+    });
+  }
+  function calcular() {
+    const n = pts.length, mx = d3.mean(pts, p => p.x), my = d3.mean(pts, p => p.y);
+    let sxx = 0, sxy = 0, syy = 0;
+    pts.forEach(p => { const a = p.x - mx, b = p.y - my; sxx += a * a; sxy += a * b; syy += b * b; });
+    const C = [[sxx / (n - 1), sxy / (n - 1)], [sxy / (n - 1), syy / (n - 1)]];
+    const E = eig2(C);
+    pts.forEach(p => { p.cx = p.x - mx; p.cy = p.y - my; p.z = p.cx * E.v[0][0] + p.cy * E.v[0][1]; });
+    r = { n, mx, my, C, E, total: E.l[0] + E.l[1] };
+  }
+  function posicion(p) {
+    if (paso === 0) return [p.x, p.y];
+    if (paso <= 3) return [p.cx, p.cy];
+    if (paso === 4) return [p.z * r.E.v[0][0], p.z * r.E.v[0][1]];
+    return [p.z, 0];
+  }
+  function dibujar(animar = true) {
+    const T = animar ? 750 : 0, v1 = r.E.v[0], v2 = r.E.v[1];
+    const vis = (g, on) => g.transition().duration(T).style("opacity", on ? 1 : 0);
+
+    // media y traslado al origen
+    gMedia.selectAll("*").remove();
+    gMedia.append("line").attr("x1", x(r.mx)).attr("y1", y(r.my)).attr("x2", x(0)).attr("y2", y(0))
+      .style("stroke", "var(--suave)").attr("stroke-width", 1.5).attr("stroke-dasharray", "5 4").attr("marker-end", "url(#fl-media)");
+    gMedia.append("path").attr("d", d3.symbol(d3.symbolCross, 160)()).attr("transform", `translate(${x(r.mx)},${y(r.my)}) rotate(45)`)
+      .style("fill", "var(--tinta)");
+    gMedia.append("text").attr("x", x(r.mx) + 10).attr("y", y(r.my) - 10).text("media").style("fill", "var(--tinta2)").attr("font-size", 13);
+    vis(gMedia, paso === 1);
+
+    // elipse de covarianza (2 desviaciones)
+    gElipse.selectAll("*").remove();
+    const ang = Math.atan2(v1[1], v1[0]) * 180 / Math.PI, k = x(1) - x(0);
+    gElipse.append("ellipse").attr("cx", x(0)).attr("cy", y(0))
+      .attr("rx", 2 * Math.sqrt(r.E.l[0]) * k).attr("ry", 2 * Math.sqrt(Math.max(r.E.l[1], 0)) * k)
+      .attr("transform", `rotate(${-ang},${x(0)},${y(0)})`)
+      .style("fill", "var(--azul3)").style("stroke", "var(--azul2)").attr("stroke-width", 1.5).style("fill-opacity", 0.6);
+    vis(gElipse, paso === 2 || paso === 3);
+
+    // flechas de las componentes
+    gFlechas.selectAll("*").remove();
+    [[v1, r.E.l[0], "cp1", "CP1"], [v2, r.E.l[1], "cp2", "CP2"]].forEach(([v, l, c, nom]) => {
+      const L = 2 * Math.sqrt(Math.max(l, 0));
+      gFlechas.append("line").attr("x1", x(0)).attr("y1", y(0)).attr("x2", x(v[0] * L)).attr("y2", y(v[1] * L))
+        .style("stroke", `var(--${c})`).attr("stroke-width", 3).attr("marker-end", `url(#fl-${c})`);
+      gFlechas.append("text").attr("x", x(v[0] * (L + 0.9))).attr("y", y(v[1] * (L + 0.9)) + 5).attr("text-anchor", "middle")
+        .text(nom).style("fill", `var(--${c})`).attr("font-weight", 700);
+    });
+    vis(gFlechas, paso === 3 || paso === 4);
+
+    // recta de CP1 y segmentos de proyección
+    gLinea.selectAll("*").remove();
+    gLinea.append("line").attr("x1", x(-15 * v1[0])).attr("y1", y(-15 * v1[1])).attr("x2", x(15 * v1[0])).attr("y2", y(15 * v1[1]))
+      .style("stroke", "var(--cp1)").attr("stroke-width", 1.5);
+    vis(gLinea, paso === 4);
+    gProy.selectAll("line").data(pts).join("line")
+      .attr("x1", p => x(p.cx)).attr("y1", p => y(p.cy)).attr("x2", p => x(p.z * v1[0])).attr("y2", p => y(p.z * v1[1]))
+      .style("stroke", "var(--suave)").attr("stroke-width", 1);
+    vis(gProy, paso === 4);
+
+    // recta numérica final
+    gRecta.selectAll("*").remove();
+    gRecta.append("line").attr("x1", x(-10)).attr("x2", x(10)).attr("y1", y(0)).attr("y2", y(0))
+      .style("stroke", "var(--cp1)").attr("stroke-width", 2);
+    gRecta.append("text").attr("x", x(9.6)).attr("y", y(0) - 12).attr("text-anchor", "end")
+      .text("coordenada z en CP1").style("fill", "var(--cp1)").attr("font-size", 13);
+    vis(gRecta, paso === 5);
+    gEjes.transition().duration(T).style("opacity", paso === 5 ? 0.25 : 1);
+
+    // puntos
+    const c = gPts.selectAll("circle").data(pts).join("circle").attr("r", 5.5)
+      .style("fill", paso >= 4 ? "var(--cp1)" : "var(--azul2)").style("stroke", "var(--tarjeta)").attr("stroke-width", 1.5)
+      .style("cursor", paso === 0 ? "grab" : "default")
+      .on("mousemove", (e, p) => mostrarTip(e, `x = ${f2(p.x)}, y = ${f2(p.y)}<br>z (CP1) = ${f2(p.z)}`))
+      .on("mouseleave", ocultarTip);
+    c.transition().duration(T).attr("cx", p => x(posicion(p)[0])).attr("cy", p => y(posicion(p)[1]));
+    c.call(d3.drag().filter(() => paso === 0)
+      .on("drag", function (e, p) { p.x = x.invert(e.x); p.y = y.invert(e.y); d3.select(this).attr("cx", e.x).attr("cy", e.y); })
+      .on("end", () => { calcular(); motor.refrescar(); }));
+  }
+  svg.on("click", e => {
+    if (paso !== 0 || e.target.tagName === "circle") return;
+    const [px, py] = d3.pointer(e); pts.push({ x: x.invert(px), y: y.invert(py) }); calcular(); dibujar(false); motor.refrescar();
+  });
+
+  const barrasVar = () => `<div class="barras">` + r.E.l.map((l, i) =>
+    `<div><span>CP${i + 1}</span><span class="b2" style="width:${100 * l / r.total}%;background:var(--cp${i + 1})"></span><span>${pct(l / r.total)}</span></div>`).join("") + "</div>";
+  const pasos = [
+    { titulo: "Datos originales", texto: () => `<p>Cada punto es una observación con dos variables. Hay ${r.n} puntos y la nube está estirada en diagonal porque las variables están correlacionadas.</p><p>Objetivo: encontrar la dirección que conserva la mayor parte de la información para describir cada punto con un solo número.</p>` },
+    { titulo: "Centrar los datos", texto: () => `<p>Se resta la media de cada variable. La nube se traslada para que su centro quede en el origen.</p><div class="formula">x̄ = (${f2(r.mx)}, ${f2(r.my)}) &nbsp; ⇒ &nbsp; X<sub>c</sub> = X − x̄</div>` },
+    { titulo: "Matriz de covarianza", texto: () => `<div class="formula">C = X<sub>c</sub><sup>T</sup> X<sub>c</sub> / (n − 1) = ${matrizHTML(r.C)}</div><p>La diagonal son las varianzas de cada variable y el valor fuera de la diagonal es la covarianza. La elipse resume la forma de la nube.</p>` },
+    { titulo: "Autovectores y autovalores", texto: () => `<div class="formula">C w = λ w</div><p>CP1 = (${f3(r.E.v[0][0])}, ${f3(r.E.v[0][1])}) con λ<sub>1</sub> = ${f2(r.E.l[0])}<br>CP2 = (${f3(r.E.v[1][0])}, ${f3(r.E.v[1][1])}) con λ<sub>2</sub> = ${f2(r.E.l[1])}</p><p>Cada autovalor es la varianza en la dirección de su autovector. Varianza explicada:</p>${barrasVar()}` },
+    { titulo: "Proyectar sobre CP1", texto: () => `<div class="formula">z<sub>i</sub> = x<sub>c,i</sub> · w<sub>1</sub></div><p>Cada punto cae perpendicularmente sobre la recta de CP1. Las líneas grises son los errores; PCA elige la recta que minimiza la suma de sus cuadrados.</p><p>Error cuadrático total = (n − 1) λ<sub>2</sub> = ${f2((r.n - 1) * r.E.l[1])}</p>` },
+    { titulo: "Resultado en una dimensión", texto: () => `<p>Ahora cada punto se describe con un solo número z. Se pasó de 2 a 1 variable conservando el <b>${pct(r.E.l[0] / r.total)}</b> de la varianza.</p><p>Pruebe a bajar la correlación a cero: las dos componentes quedan casi iguales y reducir ya no compensa.</p>` },
+  ];
+  const motor = motorPasos("pca", pasos, i => { paso = i; dibujar(true); });
+  const rehacer = () => { generar(); calcular(); dibujar(true); motor.refrescar(); };
+  slider("pca-rho", f2, rehacer); slider("pca-n", d => d, rehacer);
+  d3.select("#pca-nueva").on("click", rehacer);
+  generar(); calcular(); motor.ir(0);
+}
+
+// ======================================================================
+// 2. SVD: geometría
+// ======================================================================
+function iniciarSVDG() {
+  const W = 600, svg = d3.select("#svdg-svg");
+  const x = d3.scaleLinear([-8, 8], [20, W - 20]), y = d3.scaleLinear([-8, 8], [W - 20, 20]);
+  flecha(svg, "fg-v1", "var(--cp1)"); flecha(svg, "fg-v2", "var(--cp2)");
+  const gEjes = svg.append("g"); ejes(gEjes, x, y);
+  const forma = svg.append("path").style("fill", "var(--azul3)").style("stroke", "var(--azul)").attr("stroke-width", 2).style("fill-opacity", 0.75);
+  const marca = svg.append("circle").attr("r", 6).style("fill", "var(--tinta)");
+  const fl1 = svg.append("line").style("stroke", "var(--cp1)").attr("stroke-width", 3).attr("marker-end", "url(#fg-v1)");
+  const fl2 = svg.append("line").style("stroke", "var(--cp2)").attr("stroke-width", 3).attr("marker-end", "url(#fg-v2)");
+  const circ = d3.range(121).map(i => [Math.cos(2 * Math.PI * i / 120), Math.sin(2 * Math.PI * i / 120)]);
+  const mul = (A, B) => [[A[0][0] * B[0][0] + A[0][1] * B[1][0], A[0][0] * B[0][1] + A[0][1] * B[1][1]],
+                        [A[1][0] * B[0][0] + A[1][1] * B[1][0], A[1][0] * B[0][1] + A[1][1] * B[1][1]]];
+  const ap = (T, p) => [T[0][0] * p[0] + T[0][1] * p[1], T[1][0] * p[0] + T[1][1] * p[1]];
+  const rot = a => [[Math.cos(a), -Math.sin(a)], [Math.sin(a), Math.cos(a)]];
+  let A, s, U, Vt, thV, thU, refl, etapa = 0, anim = null;
+
+  function descomponer() {
+    A = [["a11", "a12"], ["a21", "a22"]].map(f => f.map(id => +document.getElementById(id).value || 0));
+    const AtA = mul([[A[0][0], A[1][0]], [A[0][1], A[1][1]]], A);
+    const E = eig2(AtA);
+    s = E.l.map(l => Math.sqrt(Math.max(l, 0)));
+    let V = [[E.v[0][0], E.v[1][0]], [E.v[0][1], E.v[1][1]]];          // columnas v1, v2
+    if (V[0][0] * V[1][1] - V[0][1] * V[1][0] < 0) { V[0][1] *= -1; V[1][1] *= -1; }
+    Vt = [[V[0][0], V[1][0]], [V[0][1], V[1][1]]];
+    const Av1 = ap(A, [V[0][0], V[1][0]]);
+    const u1 = s[0] > 1e-9 ? [Av1[0] / s[0], Av1[1] / s[0]] : [1, 0];
+    const Av2 = ap(A, [V[0][1], V[1][1]]);
+    const u2 = s[1] > 1e-9 ? [Av2[0] / s[1], Av2[1] / s[1]] : [-u1[1], u1[0]];
+    const u = [u1, u2];
+    U = [[u[0][0], u[1][0]], [u[0][1], u[1][1]]];
+    refl = U[0][0] * U[1][1] - U[0][1] * U[1][0] < 0;
+    thV = Math.atan2(Vt[1][0], Vt[0][0]);
+    thU = Math.atan2(U[1][0], U[0][0]);
+  }
+  function transformacion(e, t) {
+    // e = etapa de destino, t en [0, 1] dentro de esa etapa
+    const S = (u) => [[1 + (s[0] - 1) * u, 0], [0, 1 + (s[1] - 1) * u]];
+    if (e === 0) return [[1, 0], [0, 1]];
+    if (e === 1) return rot(thV * t);
+    if (e === 2) return mul(S(t), Vt);
+    const F = [[1, 0], [0, refl ? 1 - 2 * t : 1]];
+    return mul(rot(thU * t), mul(F, mul(S(1), Vt)));
+  }
+  function pintar(T) {
+    forma.attr("d", d3.line()(circ.map(p => ap(T, p)).map(([a, b]) => [x(a), y(b)])) + "Z");
+    const p = ap(T, [1, 0]); marca.attr("cx", x(p[0])).attr("cy", y(p[1]));
+    const v1 = ap(T, [Vt[0][0], Vt[0][1]]), v2 = ap(T, [Vt[1][0], Vt[1][1]]);
+    fl1.attr("x1", x(0)).attr("y1", y(0)).attr("x2", x(v1[0])).attr("y2", y(v1[1]));
+    fl2.attr("x1", x(0)).attr("y1", y(0)).attr("x2", x(v2[0])).attr("y2", y(v2[1]));
+  }
+  function animar(destino, origen) {
+    if (anim) anim.stop();
+    if (Math.abs(destino - origen) !== 1) { pintar(transformacion(destino, 1)); return; }
+    const e = Math.max(destino, origen), ida = destino > origen;
+    anim = d3.timer(ms => {
+      const t = Math.min(1, ms / 1100), u = d3.easeCubicInOut(t);
+      pintar(transformacion(e, ida ? u : 1 - u));
+      if (t === 1) { anim.stop(); if (!ida) pintar(transformacion(destino, 1)); }
+    });
+  }
+  const pasos = [
+    { titulo: "Círculo unitario", texto: () => `<p>Se parte de todos los vectores de longitud 1. Las flechas naranja y verde son v<sub>1</sub> y v<sub>2</sub>, las direcciones que A estira más y menos. El punto negro marca el vector (1, 0) para seguir las rotaciones.</p><div class="formula">A = ${matrizHTML(A)}</div>` },
+    { titulo: "Rotar con Vᵀ", texto: () => `<div class="formula">V<sup>T</sup> = ${matrizHTML(Vt, f3)}</div><p>V<sup>T</sup> es una rotación que lleva v<sub>1</sub> y v<sub>2</sub> a los ejes horizontal y vertical. El círculo no cambia de forma, solo gira ${f1(thV * 180 / Math.PI)}°.</p>` },
+    { titulo: "Estirar con Σ", texto: () => `<div class="formula">Σ = ${matrizHTML([[s[0], 0], [0, s[1]]], f3)}</div><p>Σ estira cada eje por su valor singular: σ<sub>1</sub> = ${f3(s[0])} y σ<sub>2</sub> = ${f3(s[1])}. El círculo se vuelve una elipse alineada con los ejes.</p>` },
+    { titulo: "Rotar con U", texto: () => `<div class="formula">U = ${matrizHTML(U, f3)}</div><p>U ${refl ? "refleja y luego " : ""}gira la elipse hasta su posición final. El resultado coincide con aplicar A directamente: A = U Σ V<sup>T</sup>.</p><p>Los semiejes de la elipse miden σ<sub>1</sub> y σ<sub>2</sub>; el área se multiplica por σ<sub>1</sub> σ<sub>2</sub> = |det A| = ${f2(Math.abs(A[0][0] * A[1][1] - A[0][1] * A[1][0]))}.</p>` },
+  ];
+  const motor = motorPasos("svdg", pasos, (i, prev) => { etapa = i; animar(i, prev); });
+  ["a11", "a12", "a21", "a22"].forEach(id => document.getElementById(id).addEventListener("input", () => {
+    descomponer(); pintar(transformacion(etapa, 1)); motor.refrescar(); }));
+  descomponer(); pintar(transformacion(0, 1)); motor.ir(0);
+}
+
+// ======================================================================
+// 3. SVD: compresión de imagen
+// ======================================================================
+function svdJacobi(Amat, m, n) {
+  // SVD por rotaciones de Jacobi de un lado (Hestenes). Amat es Float64Array m x n por filas.
+  const Uc = Array.from({ length: n }, (_, j) => Float64Array.from({ length: m }, (_, i) => Amat[i * n + j]));
+  const V = Array.from({ length: n }, (_, j) => { const v = new Float64Array(n); v[j] = 1; return v; });
+  for (let barrido = 0; barrido < 30; barrido++) {
+    let giros = 0;
+    for (let p = 0; p < n - 1; p++) for (let q = p + 1; q < n; q++) {
+      const a = Uc[p], b = Uc[q];
+      let al = 0, be = 0, ga = 0;
+      for (let i = 0; i < m; i++) { al += a[i] * a[i]; be += b[i] * b[i]; ga += a[i] * b[i]; }
+      if (Math.abs(ga) <= 1e-10 * Math.sqrt(al * be) || ga === 0) continue;
+      giros++;
+      const z = (be - al) / (2 * ga), t = Math.sign(z || 1) / (Math.abs(z) + Math.sqrt(1 + z * z));
+      const c = 1 / Math.sqrt(1 + t * t), s = c * t;
+      for (let i = 0; i < m; i++) { const ai = a[i], bi = b[i]; a[i] = c * ai - s * bi; b[i] = s * ai + c * bi; }
+      const vp = V[p], vq = V[q];
+      for (let i = 0; i < n; i++) { const ai = vp[i], bi = vq[i]; vp[i] = c * ai - s * bi; vq[i] = s * ai + c * bi; }
+    }
+    if (!giros) break;
+  }
+  const sig = Uc.map(u => Math.hypot(...u));
+  const orden = d3.range(n).sort((i, j) => sig[j] - sig[i]);
+  return { s: orden.map(i => sig[i]), U: orden.map(i => Uc[i].map(v => sig[i] > 1e-12 ? v / sig[i] : 0)), V: orden.map(i => V[i]) };
+}
+
+function iniciarSVDI() {
+  const { w, h, px } = IMAGEN, A = Float64Array.from(px);
+  const total = A.reduce((a, v) => a + v * v, 0);
+  let R = null, k = 1, paso = 0;
+  const kEl = document.getElementById("svdi-k");
+  function pintarCanvas(id, datos, modo) {
+    const ctx = document.getElementById(id).getContext("2d"), im = ctx.createImageData(w, h);
+    let lo = 0, hi = 255;
+    if (modo === "capa") { const mx = d3.max(datos, Math.abs) || 1; lo = -mx; hi = mx; }
+    for (let i = 0; i < w * h; i++) {
+      const g = Math.max(0, Math.min(255, Math.round((datos[i] - lo) / (hi - lo) * 255)));
+      im.data.set([g, g, g, 255], 4 * i);
+    }
+    ctx.putImageData(im, 0, 0);
+  }
+  function capa(i) {
+    const out = new Float64Array(w * h), u = R.U[i], v = R.V[i], s = R.s[i];
+    for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) out[r * w + c] = s * u[r] * v[c];
+    return out;
+  }
+  function aprox(k) {
+    const out = new Float64Array(w * h);
+    for (let i = 0; i < k; i++) { const u = R.U[i], v = R.V[i], s = R.s[i];
+      for (let r = 0; r < h; r++) { const su = s * u[r]; for (let c = 0; c < w; c++) out[r * w + c] += su * v[c]; } }
+    return out;
+  }
+  // gráfico de valores singulares
+  const svg = d3.select("#svdi-svg"), Mg = { l: 56, r: 16, t: 16, b: 34 };
+  const gx = d3.scaleLinear([1, 128], [Mg.l, 800 - Mg.r]), gy = d3.scaleLog([1, 1e4], [230 - Mg.b, Mg.t]).clamp(true);
+  const gE = svg.append("g"), gL = svg.append("path"), gK = svg.append("line"), gT = svg.append("text"), gHit = svg.append("g");
+  function grafico() {
+    gE.selectAll("*").remove();
+    gy.domain([Math.max(1, d3.min(R.s) || 1), R.s[0] * 1.2]);
+    gE.append("g").attr("class", "eje").attr("transform", `translate(0,${230 - Mg.b})`).call(d3.axisBottom(gx).ticks(10));
+    gE.append("g").attr("class", "eje").attr("transform", `translate(${Mg.l},0)`).call(d3.axisLeft(gy).ticks(4, "~s"));
+    gE.append("text").attr("x", Mg.l).attr("y", 12).text("σᵢ (escala logarítmica)").style("fill", "var(--tinta2)").attr("font-size", 12);
+    gE.append("text").attr("x", 800 - Mg.r).attr("y", 226).attr("text-anchor", "end").text("índice i").style("fill", "var(--tinta2)").attr("font-size", 12);
+    gL.datum(R.s).attr("d", d3.line((d, i) => gx(i + 1), d => gy(Math.max(d, 1)))).style("fill", "none").style("stroke", "var(--azul2)").attr("stroke-width", 2);
+    gHit.selectAll("rect").data(R.s).join("rect").attr("x", (d, i) => gx(i + 1) - 3).attr("width", 6).attr("y", Mg.t).attr("height", 230 - Mg.b - Mg.t)
+      .style("fill", "transparent").on("mousemove", (e, d) => mostrarTip(e, `σ<sub>${R.s.indexOf(d) + 1}</sub> = ${f1(d)}`)).on("mouseleave", ocultarTip)
+      .on("click", (e, d) => fijarK(R.s.indexOf(d) + 1));
+  }
+  function fijarK(nk) {
+    k = Math.max(1, Math.min(128, nk)); kEl.value = k; document.getElementById("svdi-k-v").textContent = k;
+    if (!R) return;
+    pintarCanvas("img-capa", capa(k - 1), "capa"); pintarCanvas("img-aprox", aprox(k));
+    document.getElementById("cap-capa").innerHTML = `Capa ${k}: σ<sub>${k}</sub> u<sub>${k}</sub> v<sub>${k}</sub><sup>T</sup>`;
+    document.getElementById("cap-aprox").textContent = `Suma de las capas 1 a ${k}`;
+    gK.attr("x1", gx(k)).attr("x2", gx(k)).attr("y1", Mg.t).attr("y2", 230 - Mg.b).style("stroke", "var(--cp1)").attr("stroke-width", 2);
+    gT.attr("x", gx(k) + 6).attr("y", Mg.t + 14).text(`k = ${k}`).style("fill", "var(--cp1)").attr("font-size", 13);
+    motor.refrescar();
+  }
+  const energia = () => d3.sum(R.s.slice(0, k), v => v * v) / total;
+  const datos = () => `<p>k = <b>${k}</b><br>Números guardados: k (m + n + 1) = ${es.format(",")(k * (w + h + 1))} de ${es.format(",")(w * h)} (${pct(k * (w + h + 1) / (w * h))})<br>Energía conservada: ${pct(energia())}<br>Error relativo: ${pct(Math.sqrt(Math.max(0, 1 - energia())))}</p>`;
+  const pasos = [
+    { titulo: "La imagen es una matriz", texto: () => `<p>Una imagen en escala de grises de ${h} × ${w} píxeles es una matriz A con ${es.format(",")(w * h)} números entre 0 (negro) y 255 (blanco).</p><p>Pase el cursor sobre la imagen original para ver el valor de cada píxel.</p>` },
+    { titulo: "Calcular U, Σ y Vᵀ", texto: () => `<div class="formula">A = U Σ V<sup>T</sup> = Σ<sub>i</sub> σ<sub>i</sub> u<sub>i</sub> v<sub>i</sub><sup>T</sup></div><p>La descomposición se calcula en el navegador con rotaciones de Jacobi. El gráfico muestra los ${w} valores singulares: caen varios órdenes de magnitud, y eso es lo que hace posible comprimir.</p>` },
+    { titulo: "Primera capa", texto: () => `<p>La capa 1, σ<sub>1</sub> u<sub>1</sub> v<sub>1</sub><sup>T</sup>, es el producto de una columna por una fila: solo puede dibujar franjas. Aun así captura el brillo general de la escena.</p>${datos()}` },
+    { titulo: "Sumar capas una a una", texto: () => `<p>Use el botón Sumar una capa o el deslizador. Cada capa agrega detalle más fino; la imagen central muestra la capa recién sumada.</p>${datos()}` },
+    { titulo: "Rango k = 10", texto: () => `<p>Con diez capas la escena ya se reconoce usando menos de una sexta parte de los números.</p>${datos()}` },
+    { titulo: "Rango k = 50", texto: () => `<p>Con cincuenta capas la diferencia con el original es difícil de ver. El teorema de Eckart y Young garantiza que ninguna matriz de rango k se acerca más a A.</p><p>Ojo: en una imagen pequeña de 128 × 128, k = 50 ya guarda casi el 80 % de los números. La compresión rinde en imágenes grandes: en el notebook, con 512 × 512, k = 50 ocupa cerca del 20 %.</p>${datos()}` },
+  ];
+  const motor = motorPasos("svdi", pasos, i => {
+    paso = i;
+    if (i >= 1 && !R) { R = svdJacobi(A, h, w); grafico(); }
+    if (i === 0) { ["img-capa", "img-aprox"].forEach(id => document.getElementById(id).getContext("2d").clearRect(0, 0, w, h)); }
+    if (i === 1) fijarK(k);
+    if (i === 2) fijarK(1);
+    if (i === 4) fijarK(10);
+    if (i === 5) fijarK(50);
+  });
+  pintarCanvas("img-orig", A);
+  d3.select("#img-orig").on("mousemove", e => {
+    const r = e.target.getBoundingClientRect(), c = Math.floor((e.clientX - r.left) / r.width * w), f = Math.floor((e.clientY - r.top) / r.height * h);
+    if (c >= 0 && c < w && f >= 0 && f < h) mostrarTip(e, `fila ${f + 1}, columna ${c + 1}: ${px[f * w + c]}`);
+  }).on("mouseleave", ocultarTip);
+  slider("svdi-k", d => d, v => { if (!R) motor.ir(3); fijarK(v); });
+  d3.select("#svdi-mas").on("click", () => { if (paso < 3) motor.ir(3); fijarK(k + 1); });
+  d3.select("#svdi-10").on("click", () => motor.ir(4));
+  d3.select("#svdi-50").on("click", () => motor.ir(5));
+  motor.ir(0);
+}
+
+// ======================================================================
+// Dígitos: utilidades para t-SNE y UMAP
+// ======================================================================
+const XD = DIGITOS.X, YD = DIGITOS.y, N = XD.length;
+function distancias2() {
+  const D = Array.from({ length: N }, () => new Float64Array(N));
+  for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+    let s = 0; const a = XD[i], b = XD[j];
+    for (let k = 0; k < 64; k++) { const d = a[k] - b[k]; s += d * d; }
+    D[i][j] = D[j][i] = s;
+  }
+  return D;
+}
+let D2 = null;
+const dist2 = () => (D2 = D2 || distancias2());
+
+function lienzoDigitos(id) {
+  const W = 600, svg = d3.select(id);
+  const x = d3.scaleLinear([0, 1], [24, W - 24]), y = d3.scaleLinear([0, 1], [W - 24, 24]);
+  const gAristas = svg.append("g"), gPts = svg.append("g"), gEtq = svg.append("g"), gExtra = svg.append("g");
+  const pts = gPts.selectAll("circle").data(d3.range(N)).join("circle").attr("r", 4.5)
+    .style("fill", i => col(YD[i])).style("stroke", "var(--tarjeta)").attr("stroke-width", 1)
+    .on("mousemove", (e, i) => mostrarTip(e, `dígito ${YD[i]}`, XD[i])).on("mouseleave", ocultarTip);
+  function dibujar(Y, T = 0) {
+    const ex = d3.extent(Y, p => p[0]), ey = d3.extent(Y, p => p[1]);
+    const lado = Math.max(ex[1] - ex[0], ey[1] - ey[0]) || 1, cx = (ex[0] + ex[1]) / 2, cy = (ey[0] + ey[1]) / 2;
+    x.domain([cx - lado / 2 * 1.05, cx + lado / 2 * 1.05]); y.domain([cy - lado / 2 * 1.05, cy + lado / 2 * 1.05]);
+    (T ? pts.transition().duration(T) : pts).attr("cx", i => x(Y[i][0])).attr("cy", i => y(Y[i][1]));
+    // etiqueta directa en la mediana de cada clase
+    const med = CLASES.map(c => { const P = Y.filter((p, i) => YD[i] === c); return [c, d3.median(P, p => p[0]), d3.median(P, p => p[1])]; });
+    const g = gEtq.selectAll("g").data(med).join(en => { const g = en.append("g");
+      g.append("circle").attr("r", 11).style("fill", "var(--tarjeta)").attr("stroke-width", 2);
+      g.append("text").attr("text-anchor", "middle").attr("dy", 5).attr("font-weight", 700).attr("font-size", 14).style("fill", "var(--tinta)"); return g; });
+    g.select("circle").style("stroke", d => col(d[0])); g.select("text").text(d => d[0]);
+    (T ? g.transition().duration(T) : g).attr("transform", d => `translate(${x(d[1])},${y(d[2])})`);
+    return { x, y };
+  }
+  return { svg, dibujar, gAristas, gEtq, gExtra, pts, x, y };
+}
+
+function pcaDigitos() {
+  // dos primeras componentes con iteración de potencia sobre la covarianza de 64 x 64
+  const m = d3.range(64).map(k => d3.mean(XD, r => r[k]));
+  const Xc = XD.map(r => r.map((v, k) => v - m[k]));
+  const C = d3.range(64).map(a => d3.range(64).map(b => d3.sum(Xc, r => r[a] * r[b]) / (N - 1)));
+  const comps = [];
+  for (let c = 0; c < 2; c++) {
+    let v = d3.range(64).map(() => Math.random() - 0.5);
+    for (let it = 0; it < 300; it++) {
+      let w = C.map(f => d3.sum(f, (x, k) => x * v[k]));
+      comps.forEach(u => { const p = d3.sum(w, (x, k) => x * u[k]); w = w.map((x, k) => x - p * u[k]); });
+      const n = Math.hypot(...w); v = w.map(x => x / n);
+    }
+    comps.push(v);
+  }
+  return Xc.map(r => comps.map(u => d3.sum(r, (x, k) => x * u[k])));
+}
+
+// ======================================================================
+// 4. t-SNE
+// ======================================================================
+function iniciarTSNE() {
+  leyenda("#tsne-ley");
+  const L = lienzoDigitos("#tsne-svg");
+  const perpEl = slider("tsne-perp", d => d, () => { P = null; if (motor.i >= 1) motor.ir(1); });
+  const etaEl = slider("tsne-eta", d => d);
+  let P = null, Y = null, vel = null, it = 0, kl = NaN, corriendo = false, timer = null, paso = 0;
+  const heat = L.gExtra;
+
+  function afinidades() {
+    const D = dist2(), perp = +perpEl.value, H0 = Math.log(perp);
+    const Pc = Array.from({ length: N }, () => new Float64Array(N));
+    for (let i = 0; i < N; i++) {
+      let beta = 1, lo = 0, hi = Infinity, dmin = Infinity;
+      for (let j = 0; j < N; j++) if (j !== i) dmin = Math.min(dmin, D[i][j]);
+      for (let t = 0; t < 60; t++) {
+        let s = 0, sd = 0;
+        for (let j = 0; j < N; j++) if (j !== i) { const p = Math.exp(-(D[i][j] - dmin) * beta); Pc[i][j] = p; s += p; sd += p * (D[i][j] - dmin); }
+        const H = Math.log(s) + beta * sd / s;
+        for (let j = 0; j < N; j++) Pc[i][j] /= s;
+        if (Math.abs(H - H0) < 1e-5) break;
+        if (H > H0) { lo = beta; beta = hi === Infinity ? beta * 2 : (beta + hi) / 2; }
+        else { hi = beta; beta = (beta + lo) / 2; }
+      }
+      Pc[i][i] = 0;
+    }
+    P = Array.from({ length: N }, () => new Float64Array(N));
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) P[i][j] = Math.max((Pc[i][j] + Pc[j][i]) / (2 * N), 1e-12);
+  }
+  function mapaCalor() {
+    // matriz P ordenada por clase: bloques en la diagonal = vecinos de la misma clase
+    heat.selectAll("*").remove();
+    const orden = d3.range(N).sort((a, b) => YD[a] - YD[b]);
+    const cv = document.createElement("canvas"); cv.width = N; cv.height = N;
+    const ctx = cv.getContext("2d"), im = ctx.createImageData(N, N);
+    let mx = 0; orden.forEach(i => orden.forEach(j => { if (P[i][j] > mx) mx = P[i][j]; }));
+    const azul = d3.color(getComputedStyle(document.documentElement).getPropertyValue("--azul2").trim()) || d3.color("#2E75B6");
+    orden.forEach((i, a) => orden.forEach((j, b) => {
+      const v = Math.pow(P[i][j] / mx, 0.35);
+      im.data.set([azul.r, azul.g, azul.b, Math.round(255 * v)], 4 * (a * N + b));
+    }));
+    ctx.putImageData(im, 0, 0);
+    heat.append("rect").attr("x", 0).attr("y", 0).attr("width", 600).attr("height", 600).style("fill", "var(--tarjeta)");
+    heat.append("image").attr("href", cv.toDataURL()).attr("x", 70).attr("y", 50).attr("width", 480).attr("height", 480).style("image-rendering", "pixelated");
+    let acc = 0;
+    CLASES.forEach(c => { const n = YD.filter(v => v === c).length;
+      heat.append("text").attr("x", 58).attr("y", 50 + (acc + n / 2) / N * 480 + 5).attr("text-anchor", "end").text(c).style("fill", col(c)).attr("font-weight", 700);
+      heat.append("text").attr("x", 70 + (acc + n / 2) / N * 480).attr("y", 548).attr("text-anchor", "middle").text(c).style("fill", col(c)).attr("font-weight", 700);
+      acc += n; });
+    heat.append("text").attr("x", 310).attr("y", 30).attr("text-anchor", "middle").text("Matriz P ordenada por dígito (más oscuro = más afinidad)").style("fill", "var(--tinta2)").attr("font-size", 14);
+    heat.style("display", null);
+  }
+  function inicializar() {
+    const rnd = d3.randomNormal.source(d3.randomLcg(0.42))(0, 1e-4);
+    Y = d3.range(N).map(() => [rnd(), rnd()]); vel = d3.range(N).map(() => [0, 0]); it = 0; kl = NaN;
+  }
+  function iterar(veces) {
+    const eta = +etaEl.value;
+    for (let r = 0; r < veces; r++) {
+      const exa = it < 250 ? 12 : 1, mom = it < 250 ? 0.5 : 0.8;
+      const num = Array.from({ length: N }, () => new Float64Array(N)); let Z = 0;
+      for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+        const dx = Y[i][0] - Y[j][0], dy = Y[i][1] - Y[j][1], q = 1 / (1 + dx * dx + dy * dy);
+        num[i][j] = num[j][i] = q; Z += 2 * q;
+      }
+      let k = 0;
+      for (let i = 0; i < N; i++) {
+        let gx = 0, gy = 0;
+        for (let j = 0; j < N; j++) if (j !== i) {
+          const q = num[i][j] / Z, m = (exa * P[i][j] - q) * num[i][j];
+          gx += m * (Y[i][0] - Y[j][0]); gy += m * (Y[i][1] - Y[j][1]);
+          if (it % 10 === 0 && exa === 1) k += P[i][j] * Math.log(P[i][j] / Math.max(q, 1e-12));
+        }
+        vel[i][0] = mom * vel[i][0] - eta * 4 * gx; vel[i][1] = mom * vel[i][1] - eta * 4 * gy;
+      }
+      for (let i = 0; i < N; i++) { Y[i][0] += vel[i][0]; Y[i][1] += vel[i][1]; }
+      if (it % 10 === 0 && it >= 250) kl = k;
+      it++;
+    }
+  }
+  function correr(on) {
+    corriendo = on; d3.select("#tsne-play").text(on ? "Pausar" : "Ejecutar");
+    if (timer) { timer.stop(); timer = null; }
+    if (!on) return;
+    if (paso < 3) motor.ir(3);
+    timer = d3.timer(() => {
+      iterar(2); L.dibujar(Y);
+      if (it >= 250 && motor.i === 3) motor.ir(4); else motor.refrescar();
+      if (it >= 1000) correr(false);
+    });
+  }
+  const pasos = [
+    { titulo: "Datos en 64 dimensiones", texto: () => `<p>${N} imágenes de dígitos del 0 al 5, de 8 × 8 píxeles: cada una es un punto en un espacio de 64 dimensiones. Se muestran aquí con sus dos primeras componentes principales como referencia.</p><p>PCA mezcla varios dígitos porque solo puede proyectar en forma lineal.</p>` },
+    { titulo: "Afinidades P en el espacio original", texto: () => `<div class="formula">p<sub>j|i</sub> ∝ exp(−‖x<sub>i</sub> − x<sub>j</sub>‖² / 2σ<sub>i</sub>²), &nbsp; p<sub>ij</sub> = (p<sub>j|i</sub> + p<sub>i|j</sub>) / 2n</div><p>Cada σ<sub>i</sub> se ajusta por búsqueda binaria para que el punto tenga unos ${perpEl.value} vecinos efectivos (la perplejidad). Los bloques sobre la diagonal muestran que los vecinos casi siempre son del mismo dígito.</p>` },
+    { titulo: "Inicialización aleatoria", texto: () => `<p>Los puntos del mapa empiezan en posiciones aleatorias muy cerca del origen. En el mapa se usan afinidades con una t de Student de colas pesadas:</p><div class="formula">q<sub>ij</sub> = (1 + ‖y<sub>i</sub> − y<sub>j</sub>‖²)<sup>−1</sup> / Z</div><p>Pulse Ejecutar o +10 iteraciones.</p>` },
+    { titulo: "Exageración temprana", texto: () => `<p>Iteración ${it}. Durante las primeras 250 iteraciones P se multiplica por 12: los vecinos se atraen con mucha fuerza y se forman grupos compactos que luego tienen espacio para separarse.</p><div class="formula">∂C/∂y<sub>i</sub> = 4 Σ<sub>j</sub> (p<sub>ij</sub> − q<sub>ij</sub>)(y<sub>i</sub> − y<sub>j</sub>)(1 + ‖y<sub>i</sub> − y<sub>j</sub>‖²)<sup>−1</sup></div>` },
+    { titulo: "Optimización de KL(P‖Q)", texto: () => `<p>Iteración ${it} de 1000. Divergencia KL(P‖Q) = ${isNaN(kl) ? "se calcula cada 10 iteraciones" : f3(kl)}.</p><p>Se minimiza la diferencia entre las vecindades originales y las del mapa. El tamaño de cada grupo y la distancia entre grupos no tienen un significado métrico fiable.</p><p>Pruebe con perplejidad 5 y con perplejidad 50.</p>` },
+  ];
+  let Ypca = null;
+  const motor = motorPasos("tsne", pasos, i => {
+    paso = i;
+    heat.style("display", "none");
+    if (i === 0) { correr(false); Ypca = Ypca || pcaDigitos(); L.dibujar(Ypca, 600); }
+    if (i === 1) { correr(false); if (!P) afinidades(); mapaCalor(); }
+    if (i === 2) { correr(false); if (!P) afinidades(); inicializar(); L.dibujar(Y, 600); }
+    if (i >= 3) { if (!P) afinidades(); if (!Y) inicializar(); L.dibujar(Y); }
+  });
+  d3.select("#tsne-play").on("click", () => correr(!corriendo));
+  d3.select("#tsne-mas").on("click", () => { if (paso < 3) motor.ir(3); iterar(10); L.dibujar(Y); if (it >= 250 && motor.i === 3) motor.ir(4); else motor.refrescar(); });
+  motor.ir(0);
+}
+
+// ======================================================================
+// 5. UMAP
+// ======================================================================
+function ajustarAB(minDist, spread = 1) {
+  // ajuste de 1 / (1 + a d^2b) a la curva objetivo por Gauss Newton
+  const d = d3.range(1, 301).map(i => i * 3 * spread / 300);
+  const yv = d.map(t => t < minDist ? 1 : Math.exp(-(t - minDist) / spread));
+  let a = 1.6, b = 0.9;
+  for (let it = 0; it < 100; it++) {
+    let JtJ = [0, 0, 0], Jtr = [0, 0];
+    d.forEach((t, k) => { const p = Math.pow(t, 2 * b), f = 1 / (1 + a * p), r = f - yv[k];
+      const ja = -p * f * f, jb = -a * 2 * Math.log(t) * p * f * f;
+      JtJ[0] += ja * ja; JtJ[1] += ja * jb; JtJ[2] += jb * jb; Jtr[0] += ja * r; Jtr[1] += jb * r; });
+    const det = JtJ[0] * JtJ[2] - JtJ[1] * JtJ[1] + 1e-12;
+    a -= (JtJ[2] * Jtr[0] - JtJ[1] * Jtr[1]) / det; b -= (JtJ[0] * Jtr[1] - JtJ[1] * Jtr[0]) / det;
+  }
+  return [a, b];
+}
+
+function iniciarUMAP() {
+  leyenda("#umap-ley");
+  const L = lienzoDigitos("#umap-svg");
+  let kv = 15, aristas = [], Y = null, Y0 = null, ep = 0, corriendo = false, timer = null, paso = 0, ab = ajustarAB(0.1);
+  const kEl = slider("umap-k", d => d, v => { kv = v; grafo(); if (paso >= 3) reiniciar(); motor.ir(Math.min(paso, 1)); });
+  const mdEl = slider("umap-md", f2, v => { ab = ajustarAB(v); motor.refrescar(); });
+  let rhoMed = 0;
+
+  function grafo() {
+    const D = dist2(), W = new Map();
+    const vec = d3.range(N).map(i => d3.range(N).filter(j => j !== i).sort((a, b) => D[i][a] - D[i][b]).slice(0, kv));
+    const rhos = [];
+    vec.forEach((nb, i) => {
+      const d = nb.map(j => Math.sqrt(D[i][j])), rho = d[0], obj = Math.log2(kv);
+      rhos.push(rho);
+      let lo = 0, hi = Infinity, s = 1;
+      for (let t = 0; t < 64; t++) {
+        const sum = d3.sum(d, v => Math.exp(-Math.max(v - rho, 0) / s));
+        if (Math.abs(sum - obj) < 1e-5) break;
+        if (sum > obj) { hi = s; s = (lo + hi) / 2; } else { lo = s; s = hi === Infinity ? s * 2 : (lo + hi) / 2; }
+      }
+      nb.forEach((j, t) => W.set(i * N + j, Math.exp(-Math.max(d[t] - rho, 0) / s)));
+    });
+    rhoMed = d3.median(rhos);
+    const vistos = new Set(); aristas = [];
+    W.forEach((w, key) => {
+      const i = Math.floor(key / N), j = key % N, a = Math.min(i, j), b = Math.max(i, j);
+      if (vistos.has(a * N + b)) return; vistos.add(a * N + b);
+      const wij = W.get(a * N + b) || 0, wji = W.get(b * N + a) || 0;
+      aristas.push({ i: a, j: b, w: wij + wji - wij * wji });
+    });
+  }
+  function reiniciar() {
+    const P = pcaDigitos(), mx = d3.max(P, p => Math.max(Math.abs(p[0]), Math.abs(p[1])));
+    Y0 = P.map(p => [10 * p[0] / mx, 10 * p[1] / mx]); Y = Y0.map(p => p.slice()); ep = 0;
+  }
+  function dibujarAristas(peso) {
+    const { x, y } = L.dibujar(Y);
+    L.gAristas.selectAll("line").data(aristas).join("line")
+      .attr("x1", e => x(Y[e.i][0])).attr("y1", e => y(Y[e.i][1])).attr("x2", e => x(Y[e.j][0])).attr("y2", e => y(Y[e.j][1]))
+      .style("stroke", e => YD[e.i] === YD[e.j] ? col(YD[e.i]) : "var(--suave)")
+      .attr("stroke-width", 0.8).style("opacity", e => peso ? 0.08 + 0.55 * e.w : 0.35);
+  }
+  function epoca() {
+    const [a, b] = ab, alfa = 1 - ep / 300, clip = v => Math.max(-4, Math.min(4, v));
+    const wmax = d3.max(aristas, e => e.w);
+    for (const e of aristas) {
+      if (Math.random() > e.w / wmax) continue;
+      const yi = Y[e.i], yj = Y[e.j];
+      let dx = yi[0] - yj[0], dy = yi[1] - yj[1], d2 = dx * dx + dy * dy + 1e-6;
+      let c = (-2 * a * b * Math.pow(d2, b - 1)) / (1 + a * Math.pow(d2, b));
+      const gx = clip(c * dx) * alfa, gy = clip(c * dy) * alfa;
+      yi[0] += gx; yi[1] += gy; yj[0] -= gx; yj[1] -= gy;
+      for (let n = 0; n < 5; n++) {
+        const k = Math.floor(Math.random() * N); if (k === e.i) continue;
+        const yk = Y[k]; dx = yi[0] - yk[0]; dy = yi[1] - yk[1]; d2 = dx * dx + dy * dy + 1e-3;
+        c = (2 * b) / (d2 * (1 + a * Math.pow(d2, b)));
+        yi[0] += clip(c * dx) * alfa; yi[1] += clip(c * dy) * alfa;
+      }
+    }
+    ep++;
+  }
+  function correr(on) {
+    corriendo = on; d3.select("#umap-play").text(on ? "Pausar" : "Ejecutar");
+    if (timer) { timer.stop(); timer = null; }
+    if (!on) return;
+    if (paso < 3) motor.ir(3);
+    if (ep >= 300) reiniciar();
+    timer = d3.timer(() => {
+      epoca(); epoca(); L.gAristas.selectAll("*").remove(); L.dibujar(Y);
+      if (ep >= 300) { correr(false); motor.ir(4); } else motor.refrescar();
+    });
+  }
+  const pasos = [
+    { titulo: "Grafo de k vecinos", texto: () => `<p>Para cada dígito se buscan sus ${kv} vecinos más cercanos en 64 dimensiones. Las aristas grises unen dígitos distintos y las de color unen dígitos iguales. Los puntos se ubican provisionalmente con PCA.</p><p>El grafo tiene ${es.format(",")(aristas.length)} aristas.</p>` },
+    { titulo: "Pesos difusos", texto: () => `<div class="formula">w<sub>j|i</sub> = exp(−(d<sub>ij</sub> − ρ<sub>i</sub>) / σ<sub>i</sub>)</div><p>ρ<sub>i</sub> es la distancia al vecino más cercano (mediana ${f2(rhoMed)}), así que cada punto conecta con peso 1 al menos con un vecino. σ<sub>i</sub> se elige para que la suma de pesos valga log<sub>2</sub> k. Luego se simetriza con la unión difusa:</p><div class="formula">w<sub>ij</sub> = w<sub>j|i</sub> + w<sub>i|j</sub> − w<sub>j|i</sub> w<sub>i|j</sub></div><p>La opacidad de cada arista es su peso.</p>` },
+    { titulo: "Inicialización", texto: () => `<p>UMAP empieza desde una posición razonable, no aleatoria. La biblioteca original usa un embebido espectral del grafo; aquí, por simplicidad, se usa PCA escalado.</p><div class="formula">curva en el mapa: 1 / (1 + a d<sup>2b</sup>), &nbsp; a = ${f3(ab[0])}, b = ${f3(ab[1])}</div><p>a y b se ajustan a partir de la distancia mínima elegida.</p>` },
+    { titulo: "Optimización por descenso estocástico", texto: () => `<p>Época ${ep} de 300.</p><p>Se recorre cada arista con probabilidad igual a su peso: sus extremos se atraen. Para cada una se toman 5 puntos al azar que se repelen (muestreo negativo). Así se minimiza la entropía cruzada entre el grafo original y el del mapa sin calcular todas las parejas.</p>` },
+    { titulo: "Resultado", texto: () => `<p>Los seis dígitos quedan en grupos compactos. Comparado con t-SNE, UMAP suele ser más rápido, conserva algo más de estructura global y puede ubicar puntos nuevos sin rehacer todo el mapa.</p><p>Pruebe k = 3 (grupos fragmentados) y k = 40 (más estructura global), o una distancia mínima de 0,8 (grupos más difusos).</p>` },
+  ];
+  const motor = motorPasos("umap", pasos, i => {
+    paso = i;
+    if (i <= 2) { correr(false); reiniciar(); dibujarAristas(i >= 1); if (i === 2) L.gAristas.selectAll("*").remove(); }
+    if (i >= 3) { L.gAristas.selectAll("*").remove(); if (!Y) reiniciar(); }
+    if (i === 4 && ep < 300) { correr(false); while (ep < 300) epoca(); }
+    if (i >= 3) L.dibujar(Y, i === 4 ? 500 : 0);
+  });
+  d3.select("#umap-play").on("click", () => correr(!corriendo));
+  grafo(); reiniciar(); motor.ir(0);
+}
+
+const INICIO = { pca: iniciarPCA, svdg: iniciarSVDG, svdi: iniciarSVDI, tsne: iniciarTSNE, umap: iniciarUMAP };
+iniciadas.pca = true; iniciarPCA();
+</script>
+</body>
+</html>

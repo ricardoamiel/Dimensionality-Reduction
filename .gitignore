@@ -1,0 +1,36 @@
+# Scripts que construyen los entregables (notebook, datos del visualizador e infografía)
+notebook/construir_notebook.py
+visualizador/preparar_datos.py
+infografia/generar_infografia.py
+infografia/svgkit.py
+infografia/embebidos.npz
+
+# Documento .tex con las explicaciones y sus figuras exclusivas (IVF y HNSW)
+tex/
+figs/f11_ivf.*
+figs/f12_hnsw.*
+
+# Papers: los PDF tienen derechos de sus editoriales; solo se sube el índice papers/LEEME.md
+papers/*.pdf
+
+# Python y Jupyter
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Restos de LaTeX, por si se compila dentro del repositorio
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
