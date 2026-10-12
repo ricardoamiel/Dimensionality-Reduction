@@ -2,7 +2,7 @@
 
 Material de apoyo para la semana 09 del curso de Data Mining (Sistemas de recomendación, parte 1). Responde a la actividad de la sesión sobre modelos de factores latentes: explicar la técnica, sus ventajas, sus casos de uso, interpretar las fórmulas y preparar una infografía.
 
-**Visualizador interactivo:** [https://ricardoamiel.github.io/PCA_vs_SVD_Tsne_Umap/](https://USUARIO.github.io/PCA_vs_SVD_Tsne_Umap/).
+**Visualizador interactivo:** [https://ricardoamiel.github.io/Dimensionality-Reduction/](https://ricardoamiel.github.io/Dimensionality-Reduction/).
 
 ## Contenido
 
